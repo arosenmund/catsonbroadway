@@ -1,0 +1,17 @@
+# Build output
+dist/
+
+# Runtime output
+access.log
+gin.log
+cert.pem
+key.pem
+
+# Built binaries
+catsonbroadway*.exe
+catsonbroadway*.elf
+server
+
+#ai files
+.codex/
+.calude/

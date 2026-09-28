@@ -1,0 +1,80 @@
+{
+  "default_profile": "local-dev",
+  "profiles": {
+    "local-dev": {
+      "hosts": ["localhost", "127.0.0.1"],
+      "valid_from": "",
+      "valid_for_days": 365,
+      "is_ca": false,
+      "key_type": "ecdsa",
+      "ecdsa_curve": "P256",
+      "rsa_bits": 2048,
+      "organization": "Local Development Lab",
+      "organizational_unit": "Development Services",
+      "country": "US",
+      "province": "Example State",
+      "locality": "Example City",
+      "common_name": "localhost"
+    },
+    "public-site": {
+      "hosts": ["www.example.test", "example.test"],
+      "valid_from": "",
+      "valid_for_days": 90,
+      "is_ca": false,
+      "key_type": "ecdsa",
+      "ecdsa_curve": "P256",
+      "rsa_bits": 2048,
+      "organization": "Example Public Website LLC",
+      "organizational_unit": "Web Operations",
+      "country": "US",
+      "province": "Example State",
+      "locality": "Example City",
+      "common_name": "www.example.test"
+    },
+    "api-service": {
+      "hosts": ["api.example.test"],
+      "valid_from": "",
+      "valid_for_days": 90,
+      "is_ca": false,
+      "key_type": "ecdsa",
+      "ecdsa_curve": "P384",
+      "rsa_bits": 2048,
+      "organization": "Example API Services LLC",
+      "organizational_unit": "Platform Engineering",
+      "country": "US",
+      "province": "Example State",
+      "locality": "Example City",
+      "common_name": "api.example.test"
+    },
+    "static-content": {
+      "hosts": ["static.example.test", "assets.example.test"],
+      "valid_from": "",
+      "valid_for_days": 90,
+      "is_ca": false,
+      "key_type": "ecdsa",
+      "ecdsa_curve": "P256",
+      "rsa_bits": 2048,
+      "organization": "Example Static Hosting LLC",
+      "organizational_unit": "Web Operations",
+      "country": "US",
+      "province": "Example State",
+      "locality": "Example City",
+      "common_name": "static.example.test"
+    },
+    "internal-service": {
+      "hosts": ["internal.example.test", "localhost", "127.0.0.1"],
+      "valid_from": "",
+      "valid_for_days": 365,
+      "is_ca": false,
+      "key_type": "rsa",
+      "ecdsa_curve": "P256",
+      "rsa_bits": 2048,
+      "organization": "Example Internal Systems LLC",
+      "organizational_unit": "Information Technology",
+      "country": "US",
+      "province": "Example State",
+      "locality": "Example City",
+      "common_name": "internal.example.test"
+    }
+  }
+}
