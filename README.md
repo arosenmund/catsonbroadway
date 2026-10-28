@@ -7,7 +7,7 @@ Cats On Broadway is a single use web hosting tool that allows you to serve a sin
 The TLS certificate is controlled by the **cert_config.json** file. The default
 file defines named profiles:
 
-- `local-dev`: localhost and 127.0.0.1 for local/self-signed testing.
+- `local-dev`: localhost and 127.0.0.1 for local testing.
 - `public-site`: example public website shape using `www.example.test`.
 - `api-service`: API service shape using `api.example.test`.
 - `static-content`: static asset host shape using `static.example.test`.
@@ -16,6 +16,37 @@ file defines named profiles:
 Select a profile with `--cert-profile <name>`. If no profile is selected, the
 `default_profile` value from `cert_config.json` is used. A legacy flat JSON cert
 config is still supported for custom configs.
+
+Each profile can set an optional `issuer` object independently of the server's
+subject fields. For example:
+
+```json
+"issuer": {
+  "organization": "Local Development PKI",
+  "organizational_unit": "Local Certificate Services",
+  "country": "US",
+  "province": "Example State",
+  "locality": "Example City",
+  "common_name": "Local Development Root CA"
+}
+```
+
+These six fields describe the issuer's distinguished name. Omitted or empty
+issuer fields do not inherit values from the server subject. An issuer object
+must contain at least one nonempty name field. Omitting `issuer` or setting it
+to `null` preserves the original self-signed server certificate behavior. The
+same optional object is supported in legacy flat configs.
+
+With `issuer` present, the server generates a local CA with its own key and uses
+it to sign the server certificate. `cert.pem` contains the server certificate
+first, followed by the CA certificate; `key.pem` contains only the server's
+private key. The CA private key is discarded. Every normal startup regenerates
+the certificates and keys and overwrites these two files, so the CA changes on
+each run; `--dry-run` writes neither file.
+
+All five included profiles use generic example issuers. These generated CAs
+are not publicly trusted, and the application does not install trust in clients
+or the operating system. Configuring an issuer name does not establish trust.
 
 ## Headers
 
@@ -156,5 +187,6 @@ batch```
 
 
 The server prints curl, wget, PowerShell, Windows PowerShell 5.1, Python stdlib,
-and Python requests examples for the active payload URL. Self-signed certificate
-handling flags are included only when the generated certificate is self-signed.
+and Python requests examples for the active payload URL. Certificate-check
+bypass flags are included for generated self-signed certificates and generated
+local CA certificates, since neither is trusted by clients automatically.

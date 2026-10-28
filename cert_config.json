@@ -14,7 +14,15 @@
       "country": "US",
       "province": "Example State",
       "locality": "Example City",
-      "common_name": "localhost"
+      "common_name": "localhost",
+      "issuer": {
+        "organization": "Local Development PKI",
+        "organizational_unit": "Local Certificate Services",
+        "country": "US",
+        "province": "Example State",
+        "locality": "Example City",
+        "common_name": "Local Development Root CA"
+      }
     },
     "public-site": {
       "hosts": ["www.example.test", "example.test"],
@@ -29,7 +37,15 @@
       "country": "US",
       "province": "Example State",
       "locality": "Example City",
-      "common_name": "www.example.test"
+      "common_name": "www.example.test",
+      "issuer": {
+        "organization": "Example Website PKI",
+        "organizational_unit": "Website Certificate Services",
+        "country": "US",
+        "province": "Example State",
+        "locality": "Example City",
+        "common_name": "Example Website Root CA"
+      }
     },
     "api-service": {
       "hosts": ["api.example.test"],
@@ -44,7 +60,15 @@
       "country": "US",
       "province": "Example State",
       "locality": "Example City",
-      "common_name": "api.example.test"
+      "common_name": "api.example.test",
+      "issuer": {
+        "organization": "Example API PKI",
+        "organizational_unit": "API Certificate Services",
+        "country": "US",
+        "province": "Example State",
+        "locality": "Example City",
+        "common_name": "Example API Root CA"
+      }
     },
     "static-content": {
       "hosts": ["static.example.test", "assets.example.test"],
@@ -59,7 +83,15 @@
       "country": "US",
       "province": "Example State",
       "locality": "Example City",
-      "common_name": "static.example.test"
+      "common_name": "static.example.test",
+      "issuer": {
+        "organization": "Example Content PKI",
+        "organizational_unit": "Content Certificate Services",
+        "country": "US",
+        "province": "Example State",
+        "locality": "Example City",
+        "common_name": "Example Content Root CA"
+      }
     },
     "internal-service": {
       "hosts": ["internal.example.test", "localhost", "127.0.0.1"],
@@ -74,7 +106,15 @@
       "country": "US",
       "province": "Example State",
       "locality": "Example City",
-      "common_name": "internal.example.test"
+      "common_name": "internal.example.test",
+      "issuer": {
+        "organization": "Example Internal PKI",
+        "organizational_unit": "Internal Certificate Services",
+        "country": "US",
+        "province": "Example State",
+        "locality": "Example City",
+        "common_name": "Example Internal Root CA"
+      }
     }
   }
 }

@@ -38,19 +38,29 @@ import (
 )
 
 type CertConfig struct {
-	Hosts              []string `json:"hosts"`
-	ValidFrom          string   `json:"valid_from"`
-	ValidForDays       int      `json:"valid_for_days"`
-	IsCA               bool     `json:"is_ca"`
-	KeyType            string   `json:"key_type"`
-	ECDSACurve         string   `json:"ecdsa_curve"`
-	RSABits            int      `json:"rsa_bits"`
-	Organization       string   `json:"organization"`
-	OrganizationalUnit string   `json:"organizational_unit"`
-	Country            string   `json:"country"`
-	Province           string   `json:"province"`
-	Locality           string   `json:"locality"`
-	CommonName         string   `json:"common_name"`
+	Hosts              []string               `json:"hosts"`
+	ValidFrom          string                 `json:"valid_from"`
+	ValidForDays       int                    `json:"valid_for_days"`
+	IsCA               bool                   `json:"is_ca"`
+	KeyType            string                 `json:"key_type"`
+	ECDSACurve         string                 `json:"ecdsa_curve"`
+	RSABits            int                    `json:"rsa_bits"`
+	Organization       string                 `json:"organization"`
+	OrganizationalUnit string                 `json:"organizational_unit"`
+	Country            string                 `json:"country"`
+	Province           string                 `json:"province"`
+	Locality           string                 `json:"locality"`
+	CommonName         string                 `json:"common_name"`
+	Issuer             *CertificateNameConfig `json:"issuer,omitempty"`
+}
+
+type CertificateNameConfig struct {
+	Organization       string `json:"organization"`
+	OrganizationalUnit string `json:"organizational_unit"`
+	Country            string `json:"country"`
+	Province           string `json:"province"`
+	Locality           string `json:"locality"`
+	CommonName         string `json:"common_name"`
 }
 
 type CertProfileConfig struct {
@@ -121,6 +131,7 @@ type AccessLogObserver func(AccessLogEntry)
 
 type CertificateInfo struct {
 	SelfSigned bool
+	LocalCA    bool
 }
 
 type DownloadCommandOptions struct {
@@ -128,6 +139,7 @@ type DownloadCommandOptions struct {
 	OutputFile     string
 	MaxDownloads   int
 	SelfSignedCert bool
+	LocalCACert    bool
 }
 
 type DownloadCommand struct {
@@ -487,7 +499,11 @@ func printStartupSummary(plan *StartupPlan, dryRun bool) {
 		fmt.Printf("Payload policy: %s\n", payloadPolicyText(plan.Config.PayloadMaxDownloads))
 		fmt.Printf("Payload URL shape: %s\n", plan.PayloadURLShape)
 	}
-	fmt.Printf("Certificate mode: generated self-signed -> cert.pem/key.pem\n")
+	certificateMode := "generated self-signed"
+	if plan.CertConfig.Issuer != nil {
+		certificateMode = "generated local CA (not trusted by default)"
+	}
+	fmt.Printf("Certificate mode: %s -> cert.pem/key.pem\n", certificateMode)
 	fmt.Printf("Certificate profile: %s\n", displayValue(plan.CertProfile, "flat config"))
 	if plan.HeaderWarning != nil {
 		fmt.Printf("Header profile: unavailable (%v)\n", plan.HeaderWarning)
@@ -586,6 +602,7 @@ func startAppRuntime(appConfig AppConfig, options RuntimeStartOptions) (*AppRunt
 			OutputFile:     payloadOutputName(appConfig.PayloadFile, appConfig.OutputName),
 			MaxDownloads:   appConfig.PayloadMaxDownloads,
 			SelfSignedCert: certInfo.SelfSigned,
+			LocalCACert:    certInfo.LocalCA,
 		},
 	}
 	if appConfig.PayloadFile != "" {
@@ -1406,6 +1423,9 @@ func renderDashboardPayload(runtime *AppRuntime) string {
 	if options.SelfSignedCert {
 		certificateMode = "self-signed"
 	}
+	if options.LocalCACert {
+		certificateMode = "local CA (not trusted by default)"
+	}
 
 	return fmt.Sprintf(
 		"[green::b]URL:[-:-:-] %s\n[deepskyblue]File:[-] %s\n[deepskyblue]Output file:[-] %s\n[yellow]Policy:[-] %s\n[mediumpurple]Certificate:[-] %s",
@@ -2160,9 +2180,10 @@ func payloadOutputName(payloadFile string, configuredOutputName string) string {
 func renderDownloadCommands(options DownloadCommandOptions) []DownloadCommand {
 	url := posixQuote(options.URL)
 	outputFile := posixQuote(options.OutputFile)
+	needsCertificateBypass := options.SelfSignedCert || options.LocalCACert
 	curlArgs := []string{"curl"}
 	wgetArgs := []string{"wget"}
-	if options.SelfSignedCert {
+	if needsCertificateBypass {
 		curlArgs = append(curlArgs, "-k")
 		wgetArgs = append(wgetArgs, "--no-check-certificate")
 	}
@@ -2170,12 +2191,12 @@ func renderDownloadCommands(options DownloadCommandOptions) []DownloadCommand {
 	wgetArgs = append(wgetArgs, "-O", outputFile, url)
 
 	powershellCommand := fmt.Sprintf("Invoke-WebRequest -Uri %s -OutFile %s", powershellQuote(options.URL), powershellQuote(options.OutputFile))
-	if options.SelfSignedCert {
+	if needsCertificateBypass {
 		powershellCommand = fmt.Sprintf("Invoke-WebRequest -SkipCertificateCheck -Uri %s -OutFile %s", powershellQuote(options.URL), powershellQuote(options.OutputFile))
 	}
 
 	windowsPowerShellCommand := fmt.Sprintf("Invoke-WebRequest -Uri %s -OutFile %s", powershellQuote(options.URL), powershellQuote(options.OutputFile))
-	if options.SelfSignedCert {
+	if needsCertificateBypass {
 		windowsPowerShellCommand = fmt.Sprintf("[System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}; Invoke-WebRequest -Uri %s -OutFile %s", powershellQuote(options.URL), powershellQuote(options.OutputFile))
 	}
 
@@ -2184,7 +2205,7 @@ func renderDownloadCommands(options DownloadCommandOptions) []DownloadCommand {
 		strconv.Quote(options.OutputFile),
 		strconv.Quote(options.URL),
 	)
-	if options.SelfSignedCert {
+	if needsCertificateBypass {
 		pythonStdlibCommand = fmt.Sprintf(
 			"python3 -c 'import ssl,urllib.request; ctx=ssl._create_unverified_context(); open(%s,\"wb\").write(urllib.request.urlopen(%s, context=ctx).read())'",
 			strconv.Quote(options.OutputFile),
@@ -2197,7 +2218,7 @@ func renderDownloadCommands(options DownloadCommandOptions) []DownloadCommand {
 		strconv.Quote(options.OutputFile),
 		strconv.Quote(options.URL),
 	)
-	if options.SelfSignedCert {
+	if needsCertificateBypass {
 		pythonRequestsCommand = fmt.Sprintf(
 			"python3 -c 'import requests,urllib3; urllib3.disable_warnings(); open(%s,\"wb\").write(requests.get(%s, verify=False, timeout=30).content)'",
 			strconv.Quote(options.OutputFile),
@@ -2231,7 +2252,9 @@ func printPayloadCommands(options DownloadCommandOptions) {
 	} else {
 		fmt.Printf("[+] Payload path policy: expires after %d download(s)\n", options.MaxDownloads)
 	}
-	if options.SelfSignedCert {
+	if options.LocalCACert {
+		fmt.Println("[+] Certificate: generated local CA, not trusted by default; commands include local certificate-check bypass flags")
+	} else if options.SelfSignedCert {
 		fmt.Println("[+] Certificate: self-signed; commands include local certificate-check bypass flags")
 	} else {
 		fmt.Println("[+] Certificate: trusted or externally provided; commands verify TLS by default")
@@ -2250,9 +2273,25 @@ func loadCertConfig(path string, profileName string) (*CertConfig, string, error
 		return nil, "", err
 	}
 
-	var profileConfig CertProfileConfig
-	if err := json.Unmarshal(data, &profileConfig); err == nil && (profileConfig.DefaultProfile != "" || profileConfig.Profiles != nil) {
-		return selectCertProfile(profileConfig, profileName)
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return nil, "", err
+	}
+	_, hasProfiles := fields["profiles"]
+	_, hasDefaultProfile := fields["default_profile"]
+	if hasProfiles || hasDefaultProfile {
+		var profileConfig CertProfileConfig
+		if err := json.Unmarshal(data, &profileConfig); err != nil {
+			return nil, "", err
+		}
+		config, selectedProfile, err := selectCertProfile(profileConfig, profileName)
+		if err != nil {
+			return nil, "", err
+		}
+		if err := validateCertificateIssuer(config); err != nil {
+			return nil, "", fmt.Errorf("profile %q: %w", selectedProfile, err)
+		}
+		return config, selectedProfile, nil
 	}
 
 	var config CertConfig
@@ -2262,6 +2301,9 @@ func loadCertConfig(path string, profileName string) (*CertConfig, string, error
 	}
 	if profileName != "" {
 		return nil, "", fmt.Errorf("certificate profile %q was requested, but %s does not define profiles", profileName, path)
+	}
+	if err := validateCertificateIssuer(&config); err != nil {
+		return nil, "", err
 	}
 
 	return &config, "", nil
@@ -2297,7 +2339,37 @@ func availableCertProfiles(profiles map[string]CertConfig) string {
 	return fmt.Sprintf("%v", names)
 }
 
-func generateCertificate(config *CertConfig) (CertificateInfo, error) {
+func validateCertificateIssuer(config *CertConfig) error {
+	if config.Issuer == nil {
+		return nil
+	}
+	issuer := config.Issuer
+	for _, field := range []string{issuer.CommonName, issuer.Organization, issuer.OrganizationalUnit, issuer.Country, issuer.Province, issuer.Locality} {
+		if strings.TrimSpace(field) != "" {
+			return nil
+		}
+	}
+	return fmt.Errorf("issuer must contain at least one non-empty name field; omit issuer to generate a self-signed certificate")
+}
+
+func (name CertificateNameConfig) pkixName() pkix.Name {
+	optionalName := func(value string) []string {
+		if strings.TrimSpace(value) == "" {
+			return nil
+		}
+		return []string{value}
+	}
+	return pkix.Name{
+		Country:            optionalName(name.Country),
+		Province:           optionalName(name.Province),
+		Locality:           optionalName(name.Locality),
+		Organization:       optionalName(name.Organization),
+		OrganizationalUnit: optionalName(name.OrganizationalUnit),
+		CommonName:         strings.TrimSpace(name.CommonName),
+	}
+}
+
+func generateCertificateKey(config *CertConfig) (any, error) {
 	var priv any
 	var err error
 	switch config.KeyType {
@@ -2314,13 +2386,21 @@ func generateCertificate(config *CertConfig) (CertificateInfo, error) {
 		case "P521":
 			priv, err = ecdsa.GenerateKey(elliptic.P521(), crand.Reader)
 		default:
-			return CertificateInfo{}, fmt.Errorf("unsupported ECDSA curve: %s", config.ECDSACurve)
+			return nil, fmt.Errorf("unsupported ECDSA curve: %s", config.ECDSACurve)
 		}
 	case "ed25519":
 		_, priv, err = ed25519.GenerateKey(crand.Reader)
 	default:
-		return CertificateInfo{}, fmt.Errorf("unsupported key type: %s", config.KeyType)
+		return nil, fmt.Errorf("unsupported key type: %s", config.KeyType)
 	}
+	return priv, err
+}
+
+func generateCertificate(config *CertConfig) (CertificateInfo, error) {
+	if err := validateCertificateIssuer(config); err != nil {
+		return CertificateInfo{}, err
+	}
+	priv, err := generateCertificateKey(config)
 	if err != nil {
 		return CertificateInfo{}, err
 	}
@@ -2377,30 +2457,77 @@ func generateCertificate(config *CertConfig) (CertificateInfo, error) {
 		template.KeyUsage |= x509.KeyUsageCertSign
 	}
 
-	derBytes, err := x509.CreateCertificate(crand.Reader, &template, &template, publicKey(priv), priv)
+	parent := &template
+	signingKey := priv
+	if config.Issuer != nil {
+		parent, signingKey, err = generateLocalIssuer(config, &template)
+		if err != nil {
+			return CertificateInfo{}, fmt.Errorf("generate issuer: %w", err)
+		}
+	}
+	derBytes, err := x509.CreateCertificate(crand.Reader, &template, parent, publicKey(priv), signingKey)
 	if err != nil {
 		return CertificateInfo{}, err
 	}
 
-	certOut, err := os.Create("cert.pem")
-	if err != nil {
-		return CertificateInfo{}, err
-	}
-	defer certOut.Close()
-	pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-
-	keyOut, err := os.OpenFile("key.pem", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		return CertificateInfo{}, err
-	}
-	defer keyOut.Close()
 	privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
 		return CertificateInfo{}, err
 	}
-	pem.Encode(keyOut, &pem.Block{Type: "PRIVATE KEY", Bytes: privBytes})
 
-	return CertificateInfo{SelfSigned: true}, nil
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
+	if config.Issuer != nil {
+		certPEM = append(certPEM, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: parent.Raw})...)
+	}
+	if err := os.WriteFile("cert.pem", certPEM, 0644); err != nil {
+		return CertificateInfo{}, fmt.Errorf("write cert.pem: %w", err)
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privBytes})
+	if err := os.WriteFile("key.pem", keyPEM, 0600); err != nil {
+		return CertificateInfo{}, fmt.Errorf("write key.pem: %w", err)
+	}
+
+	return CertificateInfo{SelfSigned: config.Issuer == nil, LocalCA: config.Issuer != nil}, nil
+}
+
+// generateLocalIssuer creates a separate signing key and self-signed CA. Only
+// its public certificate is persisted, as the second certificate in cert.pem.
+func generateLocalIssuer(config *CertConfig, leaf *x509.Certificate) (*x509.Certificate, any, error) {
+	issuerKey, err := generateCertificateKey(config)
+	if err != nil {
+		return nil, nil, err
+	}
+	serialLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := crand.Int(crand.Reader, serialLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+	issuer := x509.Certificate{
+		SerialNumber:          serialNumber,
+		Subject:               config.Issuer.pkixName(),
+		NotBefore:             leaf.NotBefore,
+		NotAfter:              leaf.NotAfter,
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		MaxPathLen:            0,
+		MaxPathLenZero:        true,
+	}
+	if leaf.IsCA {
+		issuer.MaxPathLen = 1
+		issuer.MaxPathLenZero = false
+	}
+	derBytes, err := x509.CreateCertificate(crand.Reader, &issuer, &issuer, publicKey(issuerKey), issuerKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Parsing makes the encoded subject and generated subject key ID available
+	// when signing the server certificate.
+	parent, err := x509.ParseCertificate(derBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	return parent, issuerKey, nil
 }
 
 func publicKey(priv any) any {
